@@ -1,0 +1,13 @@
+#!/bin/sh
+
+# NB: unmodified MESON_BUILD_ROOT point to the top directory(?)
+bash ./schema-install
+
+cp "${MESON_SOURCE_ROOT}/learn_to_touch_type_keys" "/usr/local/bin/learntotouchtypekeys"
+cp "${MESON_SOURCE_ROOT}/icons/learntotouchtypekeys16x16.png" "/usr/share/icons/hicolor/16x16/apps/learntotouchtypekeys.png"
+cp "${MESON_SOURCE_ROOT}/icons/learntotouchtypekeys48x48.png" "/usr/share/icons/hicolor/48x48/apps/learntotouchtypekeys.png"
+cp "${MESON_SOURCE_ROOT}/icons/learntotouchtypekeys.svg" "/usr/share/icons/hicolor/scalable/apps/learntotouchtypekeys.svg"
+
+# NB: user-specific  ~/.local/share/applications has been a flop for me
+cp "${MESON_SOURCE_ROOT}/uk.co.archaicgroves.learntotouchtypekeys.desktop" "/usr/share/applications/uk.co.archaicgroves.learntotouchtypekeys.desktop"
+gtk-update-icon-cache /usr/share/icons/hicolor/

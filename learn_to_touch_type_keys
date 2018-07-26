@@ -1,0 +1,586 @@
+#!/usr/bin/python3
+
+#http://www.jonwitts.co.uk/archives/896
+# adapted from https://github.com/recantha/EduKit3-RC-Keyboard/blob/master/rc_keyboard.py
+
+import sys, termios, tty, os, time
+
+import gi
+gi.require_version('Gtk', '3.0')
+#gi.require_version('Gdk', '3.0')
+from gi.repository import Gtk
+from gi.repository import Gdk
+from gi.repository import Pango
+from gi.repository import GdkPixbuf
+
+
+from collections import namedtuple
+
+#! needs much code organisation
+#! Needs keyboard layout adjustment - where is the GDK alias wrap?
+#! Needs adjustable charmap
+#! word backspace not fully resetting if start is whitespace.
+#? modifiers
+#! Enable position display, or something, in the statusbar
+#? put preferences in a preferences menu
+#x (GTK makes impossible) Some form of zoom?
+
+#extraSymbols = {
+#chr(32) : '[space]',
+#chr(9) : '[tab]',
+#chr(27) : '[esc]',
+#chr(13) : '[newline/enter]',
+#chr(127) : '[go back]',
+##chr(67) : '[go right]',
+##chr(68) : '[go left]',
+##chr(65) : '[go up]',
+##chr(66) : '[go down]',
+#}
+
+#textMap = {
+#'q' : 'Quiet',
+#'a' : 'And',
+#'z' : 'laZy',
+#'w' : 'Washup',
+#'s' : 'Says',
+#'x' : 'eXpert',  
+#'e' : 'Eggs',
+#'d' : 'Do',
+#'c' : 'Cook', 
+#'r' : 'Run',
+#'f' : 'From',
+#'v' : 'Vaccum', 
+#'t' : 'To',
+#'g' : 'Get',
+#'b' : 'Bath', 
+#'y' : 'Yogurt',
+#'h' : 'Honey',
+#'n' : 'Nuts', 
+#'u' : 'Under',
+#'j' : 'Jam',
+#'m' : 'Marmalade', 
+#'i' : 'In',
+#'k' : 'Kettle',
+#',' : '[pause]', 
+#'o' : 'Old',
+#'l' : 'Lemon',
+#'.' : '[stop]', 
+#'p' : 'Prayer',
+#';' : '[wait]',
+#'/' : '[question]', 
+#}
+
+
+# If wrapped and where, I dunno
+# https://github.com/tindzk/GTK/blob/master/gdk/gdkkeysyms.h
+BACKSPACE = 65288
+BASIC_EDIT_CONTROLS = {
+    32 : '[space]',
+    65293 : '[new line/send]',
+    65288 : '[delete backwards]',
+    }
+       
+ # classiying TAB as navigation-control because
+ # - it is in GUIs and forms
+ # - no real person uses tabs
+ # - no real person should use tabs, they're awful (cf. makefiles)
+NAVIGATION_CONTROLS = {
+    65289 : '[tab]',
+    #65307 : '[esc]',
+    65363 : '[go right]',
+    65361 : '[go left]',
+    65362 : '[go up]',
+    65364 : '[go down]',
+    }
+
+TYPE_NAVIGATION_CONTROLS = BASIC_EDIT_CONTROLS.copy()
+TYPE_NAVIGATION_CONTROLS.update(NAVIGATION_CONTROLS)
+
+MNEMONIC_MAP = {
+    81 : 'Quiet',
+    65 : 'And',
+    90 : 'laZy',
+    87 : 'Washup',
+    83 : 'Says',
+    88 : 'eXpert',  
+    69 : 'Eggs',
+    68 : 'Do',
+    67 : 'Cook', 
+    82 : 'Run',
+    70 : 'From',
+    86 : 'Vaccum', 
+    84 : 'To',
+    71 : 'Get',
+    66 : 'Bath', 
+    89 : 'Yogurt',
+    72 : 'Honey',
+    78 : 'Nuts', 
+    85 : 'Under',
+    74 : 'Jam',
+    77 : 'Marmalade', 
+    73 : 'In',
+    75 : 'Kettle',
+    60 : '[pin left]', 
+    79 : 'Old',
+    76 : 'Lemon',
+    62 : '[pin right]', 
+    80 : 'Prayer',
+    58 : '[long wait]',
+    63 : '[question]', 
+    # lowercase
+    113 : 'Quiet',
+    97 : 'And',
+    122 : 'laZy',
+    119 : 'Washup',
+    115 : 'Says',
+    120 : 'eXpert',  
+    101 : 'Eggs',
+    100 : 'Do',
+    99 : 'Cook', 
+    114 : 'Run',
+    102 : 'From',
+    118 : 'Vacuum', 
+    116 : 'To',
+    103 : 'Get',
+    98 : 'Bath', 
+    121 : 'Yogurt',
+    104 : 'Honey',
+    110 : 'Nuts', 
+    117 : 'Under',
+    106 : 'Jam',
+    109 : 'Marmalade', 
+    105 : 'In',
+    107 : 'Kettle',
+    44 : '[pause]', 
+    111 : 'Old',
+    108 : 'Lemon',
+    46 : '[stop]', 
+    112 : 'Prayer',
+    59 : '[wait]',
+    47 : '[forward slash]', 
+    }
+
+#KeyCodes = namedtuple('KeyCodes', "code shiftModified")
+DEFAULT_KEYCODE = -1
+
+KEY_CODES_MAP = {
+    'default' : DEFAULT_KEYCODE,
+    'Q' : 81,
+    'A' : 65,
+    'Z' : 90,
+    'W' : 87,
+    'S' : 83,
+    'X' : 88,  
+    'E' : 69,
+    'D' : 68,
+    'C' : 67, 
+    'R' : 82,
+    'F' : 70,
+    'V' : 86, 
+    'T' : 84,
+    'G' : 71,
+    'B' : 66, 
+    'Y' : 89,
+    'H' : 72,
+    'N' : 78, 
+    'U' : 85,
+    'J' : 74,
+    'M' : 77, 
+    'I' : 73,
+    'K' : 75,
+    'pin left' : 60, 
+    'O' : 79,
+    'L' : 76,
+    'pin right' : 62, 
+    'P' : 80,
+    'long wait' : 58,
+    'question' : 63, 
+    # lowercase
+    'q' : 113, 
+    'a' : 97, 
+    'z' : 122, 
+    'w' : 119, 
+    's' : 115, 
+    'x' : 120,   
+    'e' : 101, 
+    'd' : 100, 
+    'c' : 99,  
+    'r' : 114, 
+    'f' : 102, 
+    'v' : 118,  
+    't' : 116, 
+    'g' : 103, 
+    'b' : 98,  
+    'y' : 121, 
+    'h' : 104, 
+    'n' : 110,  
+    'u' : 117, 
+    'j' : 106, 
+    'm' : 109,  
+    'i' : 105, 
+    'k' : 107, 
+    'pause' : 44, 
+    'o' : 111, 
+    'l' : 108,
+    'stop' : 46,
+    'p' : 112, 
+    'wait' : 59,
+    'forward slash' : 47, 
+    }
+
+SHIFT_MODIFY_MAP = {
+    'q' : 'Q', 
+    'a' : 'A',
+    'z' : 'Z',
+    'w' : 'W',
+    's' : 'S',
+    'x' : 'X',
+    'e' : 'E',
+    'd' : 'D',
+    'c' : 'C',
+    'r' : 'R',
+    'f' : 'F',
+    'v' : 'V',
+    't' : 'T',
+    'g' : 'G', 
+    'b' : 'B', 
+    'y' : 'Y', 
+    'h' : 'H', 
+    'n' : 'N',  
+    'u' : 'U', 
+    'j' : 'J', 
+    'm' : 'M',  
+    'i' : 'I', 
+    'k' : 'K', 
+    'pause' : 'pin left', 
+    'o' : 'O', 
+    'l' : 'L',
+    'stop' : 'pin right',
+    'p' : 'P', 
+    'wait' : 'long wait',
+    'forward slash' : 'question',
+   }
+
+IMAGE_MAP = {
+    'default' : 'empty.svg',
+    'Q' : 'quiet.svg', 
+    'A' : 'and.svg', 
+    'Z' : 'lazy.svg', 
+    'W' : 'washup.svg', 
+    'S' : 'says.svg', 
+    'X' : 'expert.svg',  
+    'E' : 'egg.svg', 
+    'D' : 'do.svg', 
+    'C' : 'cook.svg',
+    'R' : 'run.svg', 
+    'F' : 'from.svg', 
+    'V' : 'vacuum.svg',  
+    'T' : 'to.svg', 
+    'G' : 'get.svg', 
+    'B' : 'bath.svg', 
+    'Y' : 'yogurt.svg', 
+    'H' : 'honey.svg', 
+    'N' : 'nuts.svg',  
+    'U' : 'under.svg', 
+    'J' : 'jam.svg', 
+    'M' : 'marmalade.svg',
+    'I' : 'in.svg', 
+    'K' : 'kettle.svg', 
+    'pin left' : 'pin_left.svg', 
+    'O' : 'old.svg', 
+    'L' : 'lemon.svg',
+    'pin right' : 'pin_right.svg', 
+    'P' : 'pray.svg', 
+    'long wait' : 'long_wait.svg',
+    'question' : 'question.svg', 
+    # lowercase
+    'q' : 'quiet.svg', 
+    'a' : 'and.svg', 
+    'z' : 'lazy.svg', 
+    'w' : 'washup.svg', 
+    's' : 'says.svg', 
+    'x' : 'expert.svg',  
+    'e' : 'egg.svg', 
+    'd' : 'do.svg', 
+    'c' : 'cook.svg',  
+    'r' : 'run.svg', 
+    'f' : 'from.svg', 
+    'v' : 'vacuum.svg',  
+    't' : 'to.svg', 
+    'g' : 'get.svg', 
+    'b' : 'bath.svg',  
+    'y' : 'yogurt.svg', 
+    'h' : 'honey.svg', 
+    'n' : 'nuts.svg',  
+    'u' : 'under.svg', 
+    'j' : 'jam.svg', 
+    'm' : 'marmalade.svg',  
+    'i' : 'in.svg', 
+    'k' : 'kettle.svg', 
+    'pause' : 'pause.svg', 
+    'o' : 'old.svg', 
+    'l' : 'lemon.svg',
+    'stop' : 'stop.svg',
+    'p' : 'pray.svg', 
+    'wait' : 'wait.svg',
+    'forward slash' : 'forward_slash.svg', 
+   }
+   
+#KeyData = namedtuple('KeyData', "Code UpperCode ImgType ImgId ")
+
+      
+# Python <3.5
+FULL_MAP = MNEMONIC_MAP.copy()
+FULL_MAP.update(TYPE_NAVIGATION_CONTROLS)
+#print(fullMap)
+# Python 3.5+
+#fullMap = {**textMap, **extraSymbols}
+
+    
+    
+    
+PROMPT = 'Start...\n'
+PROMPT_LENGTH = len(PROMPT)
+DISPLAY_PROMPT = '<span size="larger" font_style="italic">type some text...</span>'
+
+class MyWindow(Gtk.Window):
+
+    def __init__(self):
+        Gtk.Window.__init__(self, title="Learn To Touch-Type: Keys")
+        #self.set_border_width(10)
+        # Try opening with enough size not to bother users with other
+        # controls
+        self.set_default_size(450, 350)
+        self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self.add(self.box)
+        self.createToolbar()
+        self.createDisplay()
+        self.createTextView()
+        self.createStatusbar()    
+        self.init_text_view()
+
+    def init_text_view(self):
+        '''
+        Actions on start or clear.
+        Takes the edge off a whiteout start by adding a message. Moves
+        focus to typing area.
+        '''
+        self.insert(PROMPT)
+        self.textView.grab_focus()
+      
+    def createToolbar(self):
+        toolbar = Gtk.Toolbar()
+        self.box.pack_start(toolbar, False, True, 0)
+        
+        toolitem_clear = Gtk.ToolItem()
+        button_clear = Gtk.Button("Remove Typing")
+        toolitem_clear.add(button_clear)        
+        toolbar.insert(toolitem_clear, 0)
+        button_clear.connect("clicked", self.on_clear_clicked)
+        # toolbar.insert(Gtk.SeparatorToolItem(), 10)
+        
+        toolitem_show_controls = Gtk.ToolItem()
+        self.button_show_controls = Gtk.ToggleButton("Show Control Keys")
+        toolitem_show_controls.add(self.button_show_controls)        
+        toolbar.insert(toolitem_show_controls, 0)
+        self.button_show_controls.set_active(True)
+        self.button_show_controls.connect("toggled", self.on_show_controls_clicked)
+       
+        toolitem_delete_by_word = Gtk.ToolItem()
+        self.button_delete_by_word = Gtk.ToggleButton("Delete by word")
+        toolitem_delete_by_word.add(self.button_delete_by_word)        
+        toolbar.insert(toolitem_delete_by_word, 0)
+        self.button_delete_by_word.set_active(True)
+        self.button_delete_by_word.connect("toggled", self.on_delete_by_word_clicked)
+
+        #self.button_zoom = Gtk.ToolButton()
+        #self.button_zoom.set_icon_name("zoom-in")
+        #toolbar.insert(self.button_zoom, 0)
+        #self.button_zoom.connect("clicked", self.on_zoom_clicked)
+        
+        #self.button_unzoom = Gtk.ToolButton()
+        #self.button_unzoom.set_icon_name("zoom-out")
+        #toolbar.insert(self.button_unzoom, 0)
+        
+        #self.button_reset_zoom = Gtk.ToolButton()
+        #self.button_reset_zoom.set_icon_name("zoom-original")
+        #toolbar.insert(self.button_reset_zoom, 0)
+
+
+    def pixbufFromFile(self, filePath):
+        width  = 48
+        height = 48
+        pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_size(filePath, width, height)
+        return pixbuf
+
+    def generatePixbufMap(self, pathMap):
+        '''
+        Generate a sparse map of pixbufs.
+        The map is self.pixbufs = Map[keycode, pixbuf]
+        
+        @pathMap Map[keycode, filename]
+        '''
+        self.pixbufs = {}
+        for key, fileName in pathMap.items():
+            if (fileName):
+                self.pixbufs[KEY_CODES_MAP[key]] = self.pixbufFromFile(os.path.join('icons_keys', fileName))
+      
+      
+    def set_display_image(self, keyCode):
+        if (not(keyCode in self.pixbufs)):
+            keyCode = DEFAULT_KEYCODE
+        self.icon.set_from_pixbuf(self.pixbufs[keyCode])
+        
+    def displayReset(self):
+        self.set_display_image(DEFAULT_KEYCODE)
+        self.display_text.set_markup(DISPLAY_PROMPT)
+
+    def createDisplay(self):
+        self.generatePixbufMap(IMAGE_MAP)
+
+        braceL = Gtk.Label()
+        braceR = Gtk.Label()
+        self.display_text = Gtk.Label()
+        self.icon = Gtk.Image()
+        self.displayReset()
+
+        
+        hBox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        hBox.pack_start(braceL, True, True, 0)
+        hBox.pack_start(self.display_text, False, False, 0)
+        hBox.pack_start(self.icon, False, False, 0)
+        hBox.pack_start(braceR, True, True, 0)
+        
+        self.box.pack_start(hBox, False, False, 16)
+        
+    def createTextView(self):
+        scrollwin = Gtk.ScrolledWindow.new()
+        scrollwin.set_property("vscrollbar-policy", Gtk.PolicyType.ALWAYS)
+        # leave horizontal scrollbar on Gtk.PolicyTypeAUTO
+        
+        # set a min size to stop horizontal crush to nothing
+        # (Gedit does something like this)
+        scrollwin.set_size_request(350, -1)
+        self.box.pack_start(scrollwin, True, True, 0)
+
+        self.textView = Gtk.TextView.new()
+        self.textView.set_property("wrap_mode", Gtk.WrapMode.WORD)
+        self.textView.set_property("left_margin", 4)
+        self.textView.set_property("right_margin", 4)
+
+        self.textBuffer = self.textView.get_buffer()
+        scrollwin.add(self.textView)
+        self.textViewKeypress = self.textView.connect("key-press-event", self.keyPress)
+               
+    def createStatusbar(self):
+        self.statusBar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        self.box.pack_start(self.statusBar, False, True, 6)
+        self.posDisplay = Gtk.Label().new()
+        self.posDisplay.set_text('Ln:1 Col:1')
+        self.statusBar.pack_end(self.posDisplay, False, True, 24)
+
+    #def on_zoom_clicked(self, widget):
+        #print('zoom clicked')
+        #ctx = self.textView.get_style_context() 
+        #pctx = self.textView.get_pango_context()
+        #print("pctx: " + str(pctx))
+        #desc = pctx.get_font_description()
+        ##print("size: " + str(pctx.get_size()))
+        #print("size: " + str(desc.get_size()))
+        #desc.set_size(5 * Pango.SCALE)
+        #widget.queue_draw()
+
+    def on_show_controls_clicked(self, widget):
+        # aggressively grab focus
+        self.textView.grab_focus()
+
+    def on_delete_by_word_clicked(self, widget):
+        # aggressively grab focus
+        self.textView.grab_focus()
+        
+    def on_clear_clicked(self, widget):
+        start = self.textBuffer.get_start_iter()
+        end = self.textBuffer.get_end_iter()
+        self.textBuffer.delete(start, end)
+        self.init_text_view()
+        
+        # reset display
+        self.displayReset()
+
+
+    
+    def word_delete(self):
+        # for Gtk.TextView.do_delete_from_cursor() niether display lines
+        # nor WORDS is working and the function wrap requires 'static' 
+        # type nomenclature. 
+        #
+        # Ten years later, GTK progresses yet by exploring every pit 
+        # of shit before deciding a plank may be a good idea.
+        # No wonder---Geany uses Scintilla.
+        cp = self.textBuffer.get_property("cursor-position")
+        itStart = self.textBuffer.get_iter_at_offset(cp)
+        itEnd = self.textBuffer.get_iter_at_offset(cp)
+        itEnd.backward_word_start()
+        # Don't erase the prompt
+        if (itEnd.get_offset() >= PROMPT_LENGTH):
+            self.textBuffer.delete(itStart, itEnd)
+
+    def insert(self, string):
+        Gtk.TextView.do_insert_at_cursor(self.textView,  string) 
+        
+    def keyPress(self, widget, event):
+        #https://lazka.github.io/pgi-docs/Gdk-3.0/classes/EventKey.html#Gdk.EventKey
+        #print(str(widget))
+        #print(str(event))
+        #print(str(event.keyval))
+        ## for mod keys
+        #print(str(event.state))
+        # display text
+        isActiveKey = event.keyval in FULL_MAP
+        textToShow = None
+        
+        try:
+            if (self.button_show_controls.get_active()):
+                textToShow = FULL_MAP[event.keyval]
+            else:
+                textToShow = MNEMONIC_MAP[event.keyval]
+        except:
+            pass
+
+        formattedTxt = ''            
+        if (textToShow):
+            formattedTxt = '<span size="larger">{}</span>'.format(textToShow)
+        self.display_text.set_markup(formattedTxt)
+
+        # display image
+        self.set_display_image(event.keyval)
+
+        # if set delete by word, ask backspace to delete works
+        if(
+            event.keyval == BACKSPACE
+            and self.button_delete_by_word.get_active()
+            ):
+            self.word_delete()
+            # stop key action.
+            return True
+                        
+        # if recognised key, allow action.
+        return not isActiveKey
+
+        
+        
+        
+        
+def end(widget, event):
+    #widget._settingsFromPopulation()
+    #self.textView.disconnect(self.textViewKeypress)
+    Gtk.main_quit()
+
+
+win = MyWindow()
+win.connect("delete-event", end)
+win.show_all()
+
+# Populate
+#win._populateFromSettings()
+Gtk.main()
