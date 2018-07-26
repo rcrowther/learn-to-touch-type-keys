@@ -27,7 +27,7 @@ About
 ~~~~~
 This, 
 
-.. figure:: https://raw.githubusercontent.com/rcrowther/learn-to-touch-type-keys/master/text/LearnToTouchTypeKeys.jpg
+.. figure:: https://raw.githubusercontent.com/rcrowther/learn-to-touch-type-keys/master/text/LearnToTouchTypeKeys.png
     :width: 132 px
     :alt: LearnToTouchTypeKeys screenshot
     :align: center
@@ -44,7 +44,7 @@ See also `Learn To Touch Type`_ , a sister program to this. It looks much the sa
 
 Attribution
 ~~~~~~~~~~~
-All images are sourced from `FlatIcon <https://www.flaticon.com/about>`_, the SVG search engine. Try them!
+Images mostly from `FlatIcon <https://www.flaticon.com/about>`_, the SVG search engine. Try them!
 
 All images are to my knowlege free-licened and modifiable. Several have been modified.
 
