@@ -16,6 +16,7 @@ from gi.repository import GdkPixbuf
 
 from collections import namedtuple
 
+
 #! needs much code organisation
 #! Needs keyboard layout adjustment - where is the GDK alias wrap?
 #! Needs adjustable charmap
@@ -337,7 +338,10 @@ FULL_MAP.update(TYPE_NAVIGATION_CONTROLS)
 #fullMap = {**textMap, **extraSymbols}
 
     
-    
+# __file__ based solution to resource (images) discovery
+#? crude, but works for now R.C.
+SCRIPT_PATH = os.path.dirname(__file__)
+#print('SCRIPT_PATH: ', SCRIPT_PATH)
     
 PROMPT = 'Start...\n'
 PROMPT_LENGTH = len(PROMPT)
@@ -407,9 +411,10 @@ class MyWindow(Gtk.Window):
         #toolbar.insert(self.button_reset_zoom, 0)
 
 
-    def pixbufFromFile(self, filePath):
+    def pixbufFromFile(self, relFilePath):
         width  = 48
         height = 48
+        filePath = os.path.join(SCRIPT_PATH, relFilePath)
         pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_size(filePath, width, height)
         return pixbuf
 
