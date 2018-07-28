@@ -347,6 +347,8 @@ PROMPT = 'Start...\n'
 PROMPT_LENGTH = len(PROMPT)
 DISPLAY_PROMPT = '<span size="larger" font_style="italic">type some text...</span>'
 
+
+
 class MyWindow(Gtk.Window):
 
     def __init__(self):
